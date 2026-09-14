@@ -74,7 +74,7 @@ export default function App() {
     directorial_prompt: '',
     negative_prompt: 'morphing walls, new structures, people appearing, texture flickering, sudden cuts, blur',
     enhance_prompt: false,
-    person_generation: 'dont_allow',
+    person_generation: 'allow_adult',
     safety_setting: 'BLOCK_ONLY_HIGH',
     use_last_frame: false
   });

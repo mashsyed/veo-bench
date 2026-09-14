@@ -232,7 +232,10 @@ class GenAIService:
                     time.sleep(3.0)
                     operation = client.operations.get(operation)
                     
-                result = operation.response
+                if getattr(operation, "error", None):
+                    raise RuntimeError(f"Veo operation failed on Vertex AI: {operation.error}")
+                    
+                result = getattr(operation, "response", None) or getattr(operation, "result", None)
                 if result and hasattr(result, "generated_videos") and result.generated_videos and len(result.generated_videos) > 0:
                     video_bytes = result.generated_videos[0].video.video_bytes
                     with open(output_video_path, "wb") as f:
@@ -247,11 +250,12 @@ class GenAIService:
                         "status": "PASS"
                     }
                 else:
-                    logger.warning(f"Veo operation completed but response structure did not contain video bytes: {result}")
+                    raise RuntimeError(f"Veo operation completed but returned no video bytes. Result object: {result}")
             except Exception as e:
-                logger.error(f"Live Veo video generation failed: {e}. Falling back to OpenCV mock renderer.", exc_info=True)
+                logger.error(f"Live Veo video generation failed: {e}", exc_info=True)
+                raise RuntimeError(f"Live Veo video generation failed: {e}")
                 
-        # Fallback rendering guarantees output_video_path is created on disk
+        # Only reached in explicit mock mode (MOCK_VERTEX_API=true)
         from app.services.cv_service import cv_service
         cv_service.generate_synthetic_pushin_video(
             image_path=request_data["start_image_path"],
