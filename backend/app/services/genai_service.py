@@ -210,14 +210,15 @@ class GenAIService:
                     
                 source = types.GenerateVideosSource(**source_kwargs)
                 
-                config = types.GenerateVideosConfig(
-                    person_generation=request_data.get("person_generation", "dont_allow"),
-                    aspect_ratio=request_data.get("aspect_ratio", "16:9"),
-                    duration_seconds=int(duration),
-                    negative_prompt=request_data.get("negative_prompt"),
-                    seed=request_data.get("seed"),
-                    enhance_prompt=request_data.get("enhance_prompt", False)
-                )
+                config_kwargs = {
+                    "person_generation": request_data.get("person_generation", "dont_allow"),
+                    "aspect_ratio": request_data.get("aspect_ratio", "16:9"),
+                    "duration_seconds": int(duration),
+                    "negative_prompt": request_data.get("negative_prompt"),
+                    "seed": request_data.get("seed"),
+                    "enhance_prompt": True
+                }
+                config = types.GenerateVideosConfig(**config_kwargs)
                 
                 logger.info(f"Dispatching real Veo generation model={target_model}...")
                 operation = client.models.generate_videos(

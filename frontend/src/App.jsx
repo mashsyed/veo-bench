@@ -73,7 +73,7 @@ export default function App() {
     seed_locked: false,
     directorial_prompt: '',
     negative_prompt: 'morphing walls, new structures, people appearing, texture flickering, sudden cuts, blur',
-    enhance_prompt: false,
+    enhance_prompt: true,
     person_generation: 'allow_adult',
     safety_setting: 'BLOCK_ONLY_HIGH',
     use_last_frame: false
