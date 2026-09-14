@@ -60,18 +60,8 @@ def create_default_samples():
                 b = int(color1[2] * (1 - ratio) + color2[2] * ratio)
                 img[y, :] = (b, g, r)
                 
-            # Add structural architecture lines & horizon
-            cv2.line(img, (0, 650), (1920, 650), (255, 255, 255), 3) # Horizon
-            cv2.rectangle(img, (200, 250), (1720, 650), (255, 255, 255), 2) # Architectural frame
-            cv2.rectangle(img, (400, 350), (1520, 650), (255, 255, 255), 2) # Inner frame
-            
-            # Title watermark
-            cv2.putText(img, f"EXPEDIA VEOBENCH SAMPLE: {title.upper()}", (450, 120),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 3, cv2.LINE_AA)
-            cv2.putText(img, "1080p Master Keyframe Asset (3% - 15% Push-In Zone)", (580, 180),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.8, (230, 230, 230), 2, cv2.LINE_AA)
-            
-            cv2.imwrite(sample_path, img)
+            # Save clean photographic sample asset
+            cv2.imwrite(sample_path, img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
 
 @app.on_event("startup")
 def startup_event():
