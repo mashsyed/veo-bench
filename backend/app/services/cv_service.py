@@ -4,6 +4,8 @@ import numpy as np
 from PIL import Image
 import io
 import base64
+import subprocess
+import shutil
 from skimage.metrics import structural_similarity as ssim
 
 class ComputerVisionService:
@@ -159,10 +161,10 @@ class ComputerVisionService:
     def generate_synthetic_pushin_video(image_path: str, output_path: str, prompt: str = "", duration_sec: float = 4.0, fps: int = 30) -> str:
         """
         Generates a realistic smooth camera motion MP4 video from an image based on directorial prompt.
+        Uses ffmpeg with libx264 for universal browser playback compatibility.
         """
         img = cv2.imread(image_path)
         if img is None:
-            # Create synthetic gradient hospitality image if missing
             img = np.zeros((720, 1280, 3), dtype=np.uint8)
             cv2.rectangle(img, (0, 0), (1280, 720), (180, 140, 100), -1)
             cv2.putText(img, "VeoBench Hospitality Test Asset", (300, 360), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (255, 255, 255), 2)
@@ -170,52 +172,68 @@ class ComputerVisionService:
         height, width = img.shape[:2]
         total_frames = int(duration_sec * fps)
         
-        # Define MP4 VideoWriter with H.264 (avc1) codec for web browser compatibility
-        fourcc = cv2.VideoWriter_fourcc(*'avc1')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-        if not out.isOpened():
-            # Fallback to mp4v if avc1 is unavailable
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-        
         prompt_lower = (prompt or "").lower()
         is_left_to_right = "left to right" in prompt_lower or "pan right" in prompt_lower or "dolly right" in prompt_lower
         is_right_to_left = "right to left" in prompt_lower or "pan left" in prompt_lower or "dolly left" in prompt_lower
         is_tilt_up = "tilt up" in prompt_lower or "pan up" in prompt_lower
         
-        max_zoom = 0.08 # 8% total zoom
+        max_zoom = 0.08
         center_x = width / 2.0
         center_y = height / 2.0
         
-        for i in range(total_frames):
-            progress = i / float(total_frames - 1) if total_frames > 1 else 0.0
-            # Smooth ease-in-out cosine curve for continuous motion without acceleration spikes
-            smooth_progress = 0.5 - 0.5 * np.cos(progress * np.pi)
-            
-            if is_left_to_right:
-                # Camera moves left to right across scene
-                shift_x = (smooth_progress - 0.5) * (width * 0.12)
-                M = np.float32([[1, 0, -shift_x], [0, 1, 0]])
-                frame = cv2.warpAffine(img, M, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
-            elif is_right_to_left:
-                # Camera moves right to left across scene
-                shift_x = (0.5 - smooth_progress) * (width * 0.12)
-                M = np.float32([[1, 0, -shift_x], [0, 1, 0]])
-                frame = cv2.warpAffine(img, M, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
-            elif is_tilt_up:
-                # Camera moves vertically tilt up
-                shift_y = (smooth_progress - 0.5) * (height * 0.12)
-                M = np.float32([[1, 0, 0], [0, 1, -shift_y]])
-                frame = cv2.warpAffine(img, M, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
-            else:
-                # Default optical push-in zoom
-                scale = 1.0 + (max_zoom * smooth_progress)
-                M = cv2.getRotationMatrix2D((center_x, center_y), 0, scale)
-                frame = cv2.warpAffine(img, M, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
-            
-            out.write(frame)
-            
-        out.release()
+        # Render frames to a temporary directory
+        temp_dir = output_path + "_frames"
+        os.makedirs(temp_dir, exist_ok=True)
+        
+        try:
+            for i in range(total_frames):
+                progress = i / float(total_frames - 1) if total_frames > 1 else 0.0
+                smooth_progress = 0.5 - 0.5 * np.cos(progress * np.pi)
+                
+                if is_left_to_right:
+                    shift_x = (smooth_progress - 0.5) * (width * 0.12)
+                    M = np.float32([[1, 0, -shift_x], [0, 1, 0]])
+                    frame = cv2.warpAffine(img, M, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
+                elif is_right_to_left:
+                    shift_x = (0.5 - smooth_progress) * (width * 0.12)
+                    M = np.float32([[1, 0, -shift_x], [0, 1, 0]])
+                    frame = cv2.warpAffine(img, M, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
+                elif is_tilt_up:
+                    shift_y = (smooth_progress - 0.5) * (height * 0.12)
+                    M = np.float32([[1, 0, 0], [0, 1, -shift_y]])
+                    frame = cv2.warpAffine(img, M, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
+                else:
+                    scale = 1.0 + (max_zoom * smooth_progress)
+                    M = cv2.getRotationMatrix2D((center_x, center_y), 0, scale)
+                    frame = cv2.warpAffine(img, M, (width, height), flags=cv2.INTER_CUBIC, borderMode=cv2.BORDER_REFLECT)
+                
+                cv2.imwrite(os.path.join(temp_dir, f"frame_{i:04d}.jpg"), frame)
+                
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            cmd = [
+                "ffmpeg", "-y",
+                "-framerate", str(fps),
+                "-i", os.path.join(temp_dir, "frame_%04d.jpg"),
+                "-c:v", "libx264",
+                "-pix_fmt", "yuv420p",
+                "-preset", "ultrafast",
+                "-crf", "22",
+                output_path
+            ]
+            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True)
+        except Exception as err:
+            print(f"FFmpeg compilation error: {err}, falling back to OpenCV VideoWriter")
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
+            for i in range(total_frames):
+                frame_path = os.path.join(temp_dir, f"frame_{i:04d}.jpg")
+                if os.path.exists(frame_path):
+                    f = cv2.imread(frame_path)
+                    out.write(f)
+            out.release()
+        finally:
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
         return output_path
 
 cv_service = ComputerVisionService()

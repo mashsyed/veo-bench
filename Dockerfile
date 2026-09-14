@@ -12,6 +12,7 @@ WORKDIR /app
 
 # Install system libraries required by OpenCV & image processing
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    ffmpeg \
     libgl1 \
     libglib2.0-0 \
     libgomp1 \
