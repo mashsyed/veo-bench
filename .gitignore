@@ -20,6 +20,8 @@ backend/app/static/uploads/*
 backend/app/static/videos/*
 backend/static/uploads/*
 backend/static/videos/*
+backend/static/generated/*
+
 
 
 # Environment variables
