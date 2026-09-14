@@ -16,8 +16,11 @@ __pycache__/
 *.db
 *.sqlite
 *.sqlite3
-backend/app/static/uploads/
-backend/app/static/videos/
+backend/app/static/uploads/*
+backend/app/static/videos/*
+backend/static/uploads/*
+backend/static/videos/*
+
 
 # Environment variables
 .env
