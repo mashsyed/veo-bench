@@ -15,7 +15,7 @@ class Settings:
     GCP_PROJECT_ID: str = os.getenv("GOOGLE_CLOUD_PROJECT", os.getenv("GCP_PROJECT", "cs-poc-xbm3l5p9n29nrv0hx1ynd7s"))
     GCP_REGION: str = os.getenv("GOOGLE_CLOUD_REGION", os.getenv("LOCATION", "us-central1"))
     USE_VERTEXAI: bool = os.getenv("GOOGLE_GENAI_USE_VERTEXAI", "true").lower() in ("true", "1", "yes")
-    MOCK_VERTEX_API: bool = os.getenv("MOCK_VERTEX_API", "false" if os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GOOGLE_GENAI_USE_VERTEXAI") else "true").lower() in ("true", "1", "yes")
+    MOCK_VERTEX_API: bool = os.getenv("MOCK_VERTEX_API", "false" if (os.getenv("GOOGLE_CLOUD_PROJECT") or os.getenv("GCP_PROJECT") or os.getenv("K_SERVICE") or os.getenv("LOCATION")) else "true").lower() in ("true", "1", "yes")
     GEMINI_JUDGE_MODEL: str = os.getenv("GEMINI_JUDGE_MODEL", "gemini-3.8-flash")
     
     BASE_DIR: str = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
