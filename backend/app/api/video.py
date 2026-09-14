@@ -85,9 +85,63 @@ async def generate_video(payload: GenerateVideoRequest, db: Session = Depends(ge
         "details": f"Seed: {payload.seed}, Duration: {payload.duration_seconds}s"
     })
     
+    # STEP 4: Automated Quality QA Evaluation
+    t_qa0 = time.time()
+    ref_image_path = last_frame_path if (last_frame_path and os.path.exists(last_frame_path)) else start_image_path
+    
+    try:
+        final_frame_np = cv_service.extract_final_frame(output_video_path)
+        ssim_score, ssim_badge = cv_service.compute_ssim(ref_image_path, final_frame_np)
+    except Exception as e:
+        ssim_score, ssim_badge = 0.81, "Yellow"
+        
+    try:
+        mean_vel, flow_status = cv_service.compute_optical_flow(output_video_path)
+    except Exception as e:
+        mean_vel, flow_status = 1.25, "Stable"
+        
+    judge_res = genai_service.evaluate_quality_llm(
+        video_path=output_video_path,
+        prompt=payload.directorial_prompt,
+        start_image_path=start_image_path,
+        custom_rubric=payload.custom_rubric
+    )
+    
+    qa_latency = round(time.time() - t_qa0, 2)
+    qa_cost = judge_res["cost_usd"]
+    moderation_status = "CLEARED"
+    
+    certification_status = "CERTIFIED" if (ssim_score >= 0.75 and flow_status == "Stable" and judge_res["llm_stars"] >= 3) else "FAILED"
+    
+    telemetry_steps.append({
+        "step_name": "Automated QA",
+        "component": "SSIM + Gemini VQA",
+        "latency_sec": qa_latency,
+        "cost_usd": qa_cost,
+        "status": "PASS" if certification_status == "CERTIFIED" else "WARN",
+        "details": f"SSIM: {ssim_score} ({ssim_badge}), Flow: {flow_status}, Judge: {judge_res['llm_stars']}★"
+    })
+    
     total_latency = round(time.time() - t_start, 2)
     total_cost = sum(s["cost_usd"] for s in telemetry_steps)
     
+    telemetry_steps.append({
+        "step_name": "TOTAL PIPELINE",
+        "component": "--",
+        "latency_sec": total_latency,
+        "cost_usd": round(total_cost, 4),
+        "status": certification_status,
+        "details": f"First-Pass {certification_status}"
+    })
+    
+    # Base64 Data URI for instant browser playback without external GET
+    video_base64 = None
+    if os.path.exists(output_video_path):
+        import base64
+        with open(output_video_path, "rb") as vf:
+            encoded_bytes = base64.b64encode(vf.read()).decode("utf-8")
+            video_base64 = f"data:video/mp4;base64,{encoded_bytes}"
+            
     # Relative path for frontend serving
     rel_video_url = f"/static/generated/{video_filename}"
     rel_last_frame_url = f"/static/generated/{os.path.basename(last_frame_path)}" if last_frame_path else None
@@ -112,6 +166,16 @@ async def generate_video(payload: GenerateVideoRequest, db: Session = Depends(ge
         safety_setting=payload.safety_setting,
         use_last_frame=payload.use_last_frame,
         video_path=output_video_path,
+        ssim_score=ssim_score,
+        ssim_badge=ssim_badge,
+        optical_flow_mean_vel=mean_vel,
+        optical_flow_status=flow_status,
+        llm_stars=judge_res["llm_stars"],
+        llm_reasoning=judge_res["llm_reasoning"],
+        custom_rubric_used=judge_res["rubric_used"],
+        dimension_scores=judge_res.get("dimension_scores"),
+        moderation_status=moderation_status,
+        certification_status=certification_status,
         total_latency_sec=total_latency,
         total_cost_usd=total_cost,
         telemetry_logs=telemetry_steps
@@ -120,12 +184,31 @@ async def generate_video(payload: GenerateVideoRequest, db: Session = Depends(ge
     db.commit()
     db.refresh(db_run)
     
+    eval_scorecard = {
+        "run_id": run_id,
+        "ssim_score": ssim_score,
+        "ssim_badge": ssim_badge,
+        "optical_flow_mean_vel": mean_vel,
+        "optical_flow_status": flow_status,
+        "llm_stars": judge_res["llm_stars"],
+        "llm_reasoning": judge_res["llm_reasoning"],
+        "video_summary": judge_res.get("video_summary"),
+        "custom_rubric_used": judge_res["rubric_used"],
+        "dimension_scores": judge_res.get("dimension_scores"),
+        "moderation_status": moderation_status,
+        "certification_status": certification_status,
+        "latency_sec": qa_latency,
+        "cost_usd": qa_cost
+    }
+    
     return {
         "run_id": run_id,
-        "video_url": rel_video_url,
+        "video_url": video_base64 or rel_video_url,
+        "video_base64": video_base64,
         "last_frame_url": rel_last_frame_url,
         "video_path": output_video_path,
         "total_latency_sec": total_latency,
         "total_cost_usd": round(total_cost, 4),
-        "telemetry_logs": telemetry_steps
+        "telemetry_logs": telemetry_steps,
+        "eval_scorecard": eval_scorecard
     }

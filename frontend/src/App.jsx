@@ -144,48 +144,32 @@ export default function App() {
         safety_setting: modelConfig.safety_setting
       };
 
-      // 1. Video Generation Pipeline
+      // 1. Video Generation + QA Evaluation Pipeline
       const vidRes = await runGenerateVideo(generatePayload);
       setVideoResult(vidRes);
       setTelemetryLogs(vidRes.telemetry_logs || []);
 
-      // 2. Automated Quality QA Evaluation
-      setIsEvaluating(true);
-      const evalPayload = {
-        run_id: vidRes.run_id,
-        start_image_path: selectedImage.abs_path || selectedImage.path,
-        last_frame_path: lastFrameData?.last_frame_path || null,
-        video_path: vidRes.video_path,
-        prompt: modelConfig.directorial_prompt,
-        negative_prompt: modelConfig.negative_prompt,
-        custom_rubric: customRubric
-      };
+      if (vidRes.eval_scorecard) {
+        setEvalScorecard(vidRes.eval_scorecard);
+      } else {
+        // Fallback for standalone evaluation API
+        setIsEvaluating(true);
+        const evalPayload = {
+          run_id: vidRes.run_id,
+          start_image_path: selectedImage.abs_path || selectedImage.path,
+          last_frame_path: lastFrameData?.last_frame_path || null,
+          video_path: vidRes.video_path,
+          prompt: modelConfig.directorial_prompt,
+          negative_prompt: modelConfig.negative_prompt,
+          custom_rubric: customRubric
+        };
 
-      const evalRes = await evaluateQuality(evalPayload);
-      setEvalScorecard(evalRes);
+        const evalRes = await evaluateQuality(evalPayload);
+        setEvalScorecard(evalRes);
+      }
 
-      // Refresh telemetry log with QA step added
+      // Refresh telemetry log
       refreshTelemetry();
-      
-      // Update local logs
-      const updatedLogs = [...(vidRes.telemetry_logs || [])];
-      updatedLogs.push({
-        step_name: 'Automated QA',
-        component: 'SSIM + Gemini VQA',
-        latency_sec: evalRes.latency_sec,
-        cost_usd: evalRes.cost_usd,
-        status: evalRes.certification_status === 'CERTIFIED' ? 'PASS' : 'WARN',
-        details: `SSIM: ${evalRes.ssim_score} (${evalRes.ssim_badge}), Flow: ${evalRes.optical_flow_status}, Judge: ${evalRes.llm_stars}★`
-      });
-      updatedLogs.push({
-        step_name: 'TOTAL PIPELINE',
-        component: '--',
-        latency_sec: parseFloat((vidRes.total_latency_sec + evalRes.latency_sec).toFixed(2)),
-        cost_usd: parseFloat((vidRes.total_cost_usd + evalRes.cost_usd).toFixed(4)),
-        status: evalRes.certification_status,
-        details: `First-Pass ${evalRes.certification_status}`
-      });
-      setTelemetryLogs(updatedLogs);
 
     } catch (err) {
       console.error('Benchmark execution error:', err);
