@@ -150,20 +150,37 @@ class GenAIService:
 
     def generate_video_veo(self, request_data: Dict[str, Any], output_video_path: str) -> Dict[str, Any]:
         """
-        Dispatches video generation to Veo 3.1 / Veo 3.1 Fast via google-genai SDK or synthetic mock.
+        Dispatches video generation to Veo 3.1 / Veo 3.1 Fast via google-genai SDK.
         """
         t0 = time.time()
         client = self.get_client()
-        model_name = request_data.get("model_name", "veo-3.1-fast-generate-001")
+        raw_model_name = request_data.get("model_name", "veo-3.1-fast-generate-001")
         resolution = request_data.get("resolution", "720p")
-        duration = request_data.get("duration_seconds", 4.0)
+        duration = float(request_data.get("duration_seconds", 4.0))
         
+        # Map requested model name to official Vertex AI publisher model ID
+        model_mapping = {
+            "veo-3.1-lite-generate-preview": "veo-3.1-lite-generate-001",
+            "veo-3.1-fast-generate-preview": "veo-3.1-fast-generate-001",
+            "veo-3.1-generate-preview": "veo-3.1-generate-001",
+            "veo-3.1-lite": "veo-3.1-lite-generate-001",
+            "veo-3.1-fast": "veo-3.1-fast-generate-001",
+            "veo-3.1": "veo-3.1-generate-001",
+            "veo-2.0": "veo-2.0-generate-001"
+        }
+        target_model = model_mapping.get(raw_model_name, raw_model_name)
+        if not target_model.endswith("-001"):
+            if "lite" in target_model:
+                target_model = "veo-3.1-lite-generate-001"
+            elif "fast" in target_model:
+                target_model = "veo-3.1-fast-generate-001"
+            else:
+                target_model = "veo-3.1-generate-001"
+                
         # Calculate cost
-        if "lite" in model_name:
+        if "lite" in target_model:
             est_cost = settings.COST_VEO_LITE_720P
-        elif "omni" in model_name:
-            est_cost = settings.COST_GEMINI_OMNI_FLASH
-        elif "fast" in model_name or resolution == "720p":
+        elif "fast" in target_model:
             est_cost = settings.COST_VEO_FAST_720P
         else:
             est_cost = settings.COST_VEO_MASTER_1080P
@@ -172,7 +189,7 @@ class GenAIService:
             try:
                 from google.genai import types
                 
-                # Load image bytes into types.Image object required by google-genai SDK
+                # Load image bytes into types.Image object
                 with open(request_data["start_image_path"], "rb") as f:
                     start_bytes = f.read()
                 start_img = types.Image(image_bytes=start_bytes, mime_type="image/jpeg")
@@ -183,41 +200,32 @@ class GenAIService:
                         with open(request_data["last_frame_path"], "rb") as f:
                             last_bytes = f.read()
                         last_img = types.Image(image_bytes=last_bytes, mime_type="image/jpeg")
-                    
-                config_kwargs = {
-                    "person_generation": request_data.get("person_generation", "dont_allow"),
-                    "aspect_ratio": request_data.get("aspect_ratio", "16:9"),
-                    "duration_seconds": int(duration),
-                    "negative_prompt": request_data.get("negative_prompt"),
-                    "seed": request_data.get("seed"),
-                    "enhance_prompt": request_data.get("enhance_prompt", False)
+                        
+                source_kwargs = {
+                    "prompt": request_data.get("directorial_prompt"),
+                    "image": start_img
                 }
                 if last_img is not None:
-                    config_kwargs["last_frame"] = last_img
+                    source_kwargs["last_frame"] = last_img
                     
-                config = types.GenerateVideosConfig(**config_kwargs)
+                source = types.GenerateVideosSource(**source_kwargs)
                 
-                # Try requested model first, with fallback to veo-2.0-generate-001 if specific preview endpoint is unavailable
-                try:
-                    logger.info(f"Dispatching Veo video generation model={model_name}...")
-                    operation = client.models.generate_videos(
-                        model=model_name,
-                        prompt=request_data.get("directorial_prompt"),
-                        image=start_img,
-                        config=config
-                    )
-                except Exception as model_err:
-                    if "404" in str(model_err) or "NOT_FOUND" in str(model_err):
-                        fallback_model = "veo-2.0-generate-001"
-                        logger.warning(f"Model {model_name} returned 404 on Vertex AI. Trying fallback model {fallback_model}...")
-                        operation = client.models.generate_videos(
-                            model=fallback_model,
-                            prompt=request_data.get("directorial_prompt"),
-                            image=start_img,
-                            config=config
-                        )
-                    else:
-                        raise model_err
+                config = types.GenerateVideosConfig(
+                    person_generation=request_data.get("person_generation", "dont_allow"),
+                    aspect_ratio=request_data.get("aspect_ratio", "16:9"),
+                    duration_seconds=int(duration),
+                    negative_prompt=request_data.get("negative_prompt"),
+                    seed=request_data.get("seed"),
+                    enhance_prompt=request_data.get("enhance_prompt", False)
+                )
+                
+                logger.info(f"Dispatching real Veo generation model={target_model}...")
+                operation = client.models.generate_videos(
+                    model=target_model,
+                    source=source,
+                    config=config
+                )
+                logger.info(f"Veo operation launched: {operation.name}")
                 
                 # Poll operation until done
                 while not operation.done:
@@ -231,6 +239,7 @@ class GenAIService:
                         f.write(video_bytes)
                         
                     latency = round(time.time() - t0, 2)
+                    logger.info(f"Veo video generation succeeded! Wrote {len(video_bytes)} bytes to {output_video_path}")
                     return {
                         "video_path": output_video_path,
                         "latency_sec": latency,
@@ -238,9 +247,9 @@ class GenAIService:
                         "status": "PASS"
                     }
                 else:
-                    logger.warning("Veo operation completed but returned no video bytes. Falling back to synthetic renderer.")
+                    logger.warning(f"Veo operation completed but response structure did not contain video bytes: {result}")
             except Exception as e:
-                logger.error(f"Live Veo video generation failed: {e}. Falling back to OpenCV mock renderer.")
+                logger.error(f"Live Veo video generation failed: {e}. Falling back to OpenCV mock renderer.", exc_info=True)
                 
         # Fallback rendering guarantees output_video_path is created on disk
         from app.services.cv_service import cv_service
