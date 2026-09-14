@@ -173,6 +173,7 @@ export default function App() {
 
     } catch (err) {
       console.error('Benchmark execution error:', err);
+      alert(`⚠️ Pipeline Execution Error\n\n${err.message || 'An unexpected error occurred while executing the benchmark test. Please try again.'}`);
     } finally {
       setIsRunning(false);
       setIsEvaluating(false);

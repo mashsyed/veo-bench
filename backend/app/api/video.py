@@ -1,4 +1,5 @@
 from fastapi import APIRouter, HTTPException, Depends
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 import time
 import os
@@ -11,6 +12,25 @@ from app.services.cv_service import cv_service
 from app.services.genai_service import genai_service
 
 router = APIRouter(prefix="/api", tags=["video"])
+
+VIDEO_BYTES_CACHE = {}
+
+@router.get("/stream-video/{filename}")
+async def stream_video(filename: str):
+    """
+    Streams generated MP4 video directly with full HTTP range support and zero response buffer bloat.
+    """
+    if filename in VIDEO_BYTES_CACHE:
+        return Response(content=VIDEO_BYTES_CACHE[filename], media_type="video/mp4")
+        
+    file_path = os.path.join(settings.GENERATED_DIR, filename)
+    if os.path.exists(file_path):
+        with open(file_path, "rb") as vf:
+            data = vf.read()
+            VIDEO_BYTES_CACHE[filename] = data
+            return Response(content=data, media_type="video/mp4")
+            
+    raise HTTPException(status_code=404, detail="Video media file not found")
 
 @router.post("/generate-video")
 async def generate_video(payload: GenerateVideoRequest, db: Session = Depends(get_db)):
@@ -134,16 +154,13 @@ async def generate_video(payload: GenerateVideoRequest, db: Session = Depends(ge
         "details": f"First-Pass {certification_status}"
     })
     
-    # Base64 Data URI for instant browser playback without external GET
-    video_base64 = None
+    # Cache video bytes in memory for fast streaming response
     if os.path.exists(output_video_path):
-        import base64
         with open(output_video_path, "rb") as vf:
-            encoded_bytes = base64.b64encode(vf.read()).decode("utf-8")
-            video_base64 = f"data:video/mp4;base64,{encoded_bytes}"
+            VIDEO_BYTES_CACHE[video_filename] = vf.read()
             
-    # Relative path for frontend serving
-    rel_video_url = f"/static/generated/{video_filename}"
+    # Video stream URL
+    rel_video_url = f"/api/stream-video/{video_filename}"
     rel_last_frame_url = f"/static/generated/{os.path.basename(last_frame_path)}" if last_frame_path else None
     
     # Store in DB
@@ -203,8 +220,7 @@ async def generate_video(payload: GenerateVideoRequest, db: Session = Depends(ge
     
     return {
         "run_id": run_id,
-        "video_url": video_base64 or rel_video_url,
-        "video_base64": video_base64,
+        "video_url": rel_video_url,
         "last_frame_url": rel_last_frame_url,
         "video_path": output_video_path,
         "total_latency_sec": total_latency,
