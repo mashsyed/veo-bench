@@ -72,11 +72,11 @@ export default function App() {
     seed: 4242,
     seed_locked: false,
     directorial_prompt: '',
-    negative_prompt: 'lateral pan, horizontal sweep, camera rotation, roll, tilt, morphing walls, new structures, people appearing, texture flickering',
+    negative_prompt: 'morphing walls, new structures, people appearing, texture flickering, sudden cuts, blur',
     enhance_prompt: false,
     person_generation: 'dont_allow',
     safety_setting: 'BLOCK_ONLY_HIGH',
-    use_last_frame: true
+    use_last_frame: false
   });
 
   // Custom QA Rubric state
