@@ -10,6 +10,7 @@ from app.db.models import BenchmarkRun
 from app.db.schemas import GenerateVideoRequest
 from app.services.cv_service import cv_service
 from app.services.genai_service import genai_service
+from app.services.gcs_service import gcs_service
 
 router = APIRouter(prefix="/api", tags=["video"])
 
@@ -153,15 +154,17 @@ async def generate_video(payload: GenerateVideoRequest, db: Session = Depends(ge
         "status": certification_status,
         "details": f"First-Pass {certification_status}"
     })
+    # Upload video and last_frame to persistent Google Cloud Storage
+    gcs_video_blob_name = f"generated/{video_filename}"
+    video_public_url = gcs_service.upload_file(output_video_path, gcs_video_blob_name, content_type="video/mp4")
     
-    # Cache video bytes in memory for fast streaming response
-    if os.path.exists(output_video_path):
-        with open(output_video_path, "rb") as vf:
-            VIDEO_BYTES_CACHE[video_filename] = vf.read()
-            
-    # Video stream URL
-    rel_video_url = f"/api/stream-video/{video_filename}"
-    rel_last_frame_url = f"/static/generated/{os.path.basename(last_frame_path)}" if last_frame_path else None
+    last_frame_public_url = None
+    if last_frame_path and os.path.exists(last_frame_path):
+        gcs_frame_blob_name = f"generated/{os.path.basename(last_frame_path)}"
+        last_frame_public_url = gcs_service.upload_file(last_frame_path, gcs_frame_blob_name, content_type="image/jpeg")
+        
+    rel_video_url = video_public_url
+    rel_last_frame_url = last_frame_public_url or (f"/static/generated/{os.path.basename(last_frame_path)}" if last_frame_path else None)
     
     # Store in DB
     db_run = BenchmarkRun(
