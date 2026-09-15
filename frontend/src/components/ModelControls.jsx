@@ -93,7 +93,7 @@ export default function ModelControls({
             <option value="veo-3.1-fast-generate-001">veo-3.1-fast-generate-001 (Veo 3.1 Fast)</option>
             <option value="veo-3.1-generate-001">veo-3.1-generate-001 (Veo 3.1 Standard)</option>
             <option value="veo-3.1-lite-generate-001">veo-3.1-lite-generate-001 (Veo 3.1 Lite)</option>
-            <option value="veo-3.1-omni-flash-001">veo-3.1-omni-flash-001 (Omni Flash)</option>
+            <option value="gemini-2.0-flash-001">gemini-2.0-flash-001 (Omni Flash)</option>
             <option value="veo-3.0-generate-001">veo-3.0-generate-001 (Veo 3.0)</option>
             <option value="veo-2.0-generate-001">veo-2.0-generate-001 (Veo 2.0 Legacy)</option>
           </select>

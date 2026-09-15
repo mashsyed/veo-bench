@@ -167,15 +167,15 @@ class GenAIService:
             "veo-3.1-fast": "veo-3.1-fast-generate-001",
             "veo-3.1": "veo-3.1-generate-001",
             "veo-2.0": "veo-2.0-generate-001",
-            "omni-flash": "veo-3.1-omni-flash-001",
-            "veo-3.1-omni-flash": "veo-3.1-omni-flash-001"
+            "omni-flash": "gemini-2.0-flash-001",
+            "gemini-2.0-flash": "gemini-2.0-flash-001"
         }
         target_model = model_mapping.get(raw_model_name, raw_model_name)
-        if not target_model.endswith("-001"):
+        if not target_model.endswith("-001") and not target_model.startswith("gemini"):
             if "lite" in target_model:
                 target_model = "veo-3.1-lite-generate-001"
             elif "omni" in target_model or "flash" in target_model:
-                target_model = "veo-3.1-omni-flash-001"
+                target_model = "gemini-2.0-flash-001"
             elif "fast" in target_model:
                 target_model = "veo-3.1-fast-generate-001"
             else:
