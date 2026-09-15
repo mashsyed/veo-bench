@@ -104,11 +104,13 @@ export default function OutputPlayerScorecard({
               {videoResult?.video_url && (
                 <a 
                   href={videoResult.video_url} 
+                  target="_blank"
+                  rel="noopener noreferrer"
                   download="veo_benchmark_output.mp4"
-                  className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-mono"
-                  title="Download MP4"
+                  className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 font-mono bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30 transition-colors"
+                  title="Open MP4 Video in New Tab"
                 >
-                  <Download className="w-3 h-3" /> <span>MP4</span>
+                  <Download className="w-3 h-3" /> <span>MP4</span> <ExternalLink className="w-2.5 h-2.5" />
                 </a>
               )}
             </div>

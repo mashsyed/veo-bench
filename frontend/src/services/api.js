@@ -12,6 +12,12 @@ export async function fetchTelemetry() {
   return res.json();
 }
 
+export async function fetchRuns() {
+  const res = await fetch(`${API_BASE}/runs`);
+  if (!res.ok) throw new Error('Failed to fetch benchmark runs');
+  return res.json();
+}
+
 export async function fetchSampleImages() {
   const res = await fetch(`${API_BASE}/sample-images`);
   if (!res.ok) throw new Error('Failed to fetch sample images');

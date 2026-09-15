@@ -11,6 +11,7 @@ import { DollarSign, Clock, CheckCircle2, BarChart2 } from 'lucide-react';
 
 import { 
   fetchTelemetry, 
+  fetchRuns,
   fetchSampleImages, 
   runGenerateVideo, 
   evaluateQuality 
@@ -52,10 +53,16 @@ export default function App() {
 
   // Global session telemetry state
   const [telemetry, setTelemetry] = useState(null);
+  const [pastRuns, setPastRuns] = useState([]);
   const [sampleImages, setSampleImages] = useState([]);
   
-  // Image & Crop state
-  const [selectedImage, setSelectedImage] = useState(null);
+  // Image & Crop state with LocalStorage restoration
+  const [selectedImage, setSelectedImage] = useState(() => {
+    try {
+      const saved = localStorage.getItem('veobench_selectedImage');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) { return null; }
+  });
   const [assetClassification, setAssetClassification] = useState('Interior Suite');
   const [zoomPercent, setZoomPercent] = useState(0.06);
   const [lastFrameData, setLastFrameData] = useState(null);
@@ -63,47 +70,91 @@ export default function App() {
   const [isPreflighting, setIsPreflighting] = useState(false);
   const [cropLoading, setCropLoading] = useState(false);
 
-  // Model parameters configuration state
-  const [modelConfig, setModelConfig] = useState({
-    model_name: 'veo-3.1-fast-generate-001',
-    resolution: '720p',
-    duration_seconds: 4.0,
-    aspect_ratio: '16:9',
-    seed: 4242,
-    seed_locked: false,
-    directorial_prompt: '',
-    negative_prompt: 'morphing walls, new structures, people appearing, texture flickering, sudden cuts, blur',
-    enhance_prompt: true,
-    person_generation: 'allow_adult',
-    safety_setting: 'BLOCK_ONLY_HIGH',
-    use_last_frame: false
+  // Model parameters configuration state with LocalStorage restoration
+  const [modelConfig, setModelConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem('veobench_modelConfig');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {}
+    return {
+      model_name: 'veo-3.1-fast-generate-001',
+      resolution: '720p',
+      duration_seconds: 4.0,
+      aspect_ratio: '16:9',
+      seed: 4242,
+      seed_locked: false,
+      directorial_prompt: '',
+      negative_prompt: 'morphing walls, new structures, people appearing, texture flickering, sudden cuts, blur',
+      enhance_prompt: true,
+      person_generation: 'allow_adult',
+      safety_setting: 'BLOCK_ONLY_HIGH',
+      use_last_frame: false
+    };
   });
 
   // Custom QA Rubric state
   const [customRubric, setCustomRubric] = useState(DEFAULT_RUBRIC);
   const [isRubricModalOpen, setIsRubricModalOpen] = useState(false);
 
-  // Pipeline execution & results state
+  // Pipeline execution & results state with LocalStorage restoration
   const [isRunning, setIsRunning] = useState(false);
   const [isEvaluating, setIsEvaluating] = useState(false);
-  const [videoResult, setVideoResult] = useState(null);
-  const [evalScorecard, setEvalScorecard] = useState(null);
-  const [telemetryLogs, setTelemetryLogs] = useState([]);
+  const [videoResult, setVideoResult] = useState(() => {
+    try {
+      const saved = localStorage.getItem('veobench_videoResult');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) { return null; }
+  });
+  const [evalScorecard, setEvalScorecard] = useState(() => {
+    try {
+      const saved = localStorage.getItem('veobench_evalScorecard');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) { return null; }
+  });
+  const [telemetryLogs, setTelemetryLogs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('veobench_telemetryLogs');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) { return []; }
+  });
 
-  // Load telemetry & sample images on mount
+  // Auto-save form and output state to LocalStorage
+  useEffect(() => {
+    if (selectedImage) localStorage.setItem('veobench_selectedImage', JSON.stringify(selectedImage));
+  }, [selectedImage]);
+
+  useEffect(() => {
+    if (modelConfig) localStorage.setItem('veobench_modelConfig', JSON.stringify(modelConfig));
+  }, [modelConfig]);
+
+  useEffect(() => {
+    if (videoResult) localStorage.setItem('veobench_videoResult', JSON.stringify(videoResult));
+  }, [videoResult]);
+
+  useEffect(() => {
+    if (evalScorecard) localStorage.setItem('veobench_evalScorecard', JSON.stringify(evalScorecard));
+  }, [evalScorecard]);
+
+  useEffect(() => {
+    if (telemetryLogs && telemetryLogs.length > 0) localStorage.setItem('veobench_telemetryLogs', JSON.stringify(telemetryLogs));
+  }, [telemetryLogs]);
+
+  // Load telemetry, past runs & sample images on mount
   useEffect(() => {
     refreshTelemetry();
     fetchSampleImages()
-      .then(samples => {
-        setSampleImages(samples);
-      })
+      .then(samples => setSampleImages(samples))
       .catch(err => console.error('Failed to load sample images:', err));
   }, []);
 
   const refreshTelemetry = () => {
     fetchTelemetry()
       .then(res => setTelemetry(res))
-      .catch(err => console.error('Failed to fetch telemetry:', err));
+      .catch(err => console.error('Failed to fetch telemetry summary:', err));
+
+    fetchRuns()
+      .then(runs => setPastRuns(runs))
+      .catch(err => console.error('Failed to fetch past runs:', err));
   };
 
   // Main Pipeline Execution Handler
@@ -319,6 +370,7 @@ export default function App() {
                 totalLatency={videoResult?.total_latency_sec}
                 totalCost={videoResult?.total_cost_usd}
                 certificationStatus={evalScorecard?.certification_status}
+                pastRuns={pastRuns}
               />
             </div>
           )}
