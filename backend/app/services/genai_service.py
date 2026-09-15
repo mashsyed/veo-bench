@@ -168,8 +168,8 @@ class GenAIService:
             "veo-3.1": "veo-3.1-generate-001",
             "veo-2.0": "veo-2.0-generate-001",
             "omni-flash": "veo-3.1-fast-generate-001",
-            "gemini-2.0-flash": "veo-3.1-fast-generate-001",
-            "gemini-2.0-flash-001": "veo-3.1-fast-generate-001"
+            "gemini-omni": "veo-3.1-fast-generate-001",
+            "gemini-omni-1.1-flash-preview": "veo-3.1-fast-generate-001"
         }
         target_model = model_mapping.get(raw_model_name, raw_model_name)
         if not target_model.startswith("veo-"):
