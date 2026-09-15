@@ -86,15 +86,31 @@ export default function TelemetryTable({ telemetryLogs, totalLatency, totalCost,
             <tbody className="divide-y divide-[#2A344A]/60 text-slate-200">
               {pastRuns && pastRuns.length > 0 ? (
                 pastRuns.map((run, idx) => {
-                  const createdDate = run.created_at 
-                    ? new Date(run.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
-                    : '--';
+                  let formattedPST = '--';
+                  if (run.created_at) {
+                    try {
+                      const utcStr = run.created_at.endsWith('Z') ? run.created_at : run.created_at + 'Z';
+                      const date = new Date(utcStr);
+                      formattedPST = date.toLocaleString('en-US', {
+                        timeZone: 'America/Los_Angeles',
+                        month: 'short',
+                        day: 'numeric',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        timeZoneName: 'short'
+                      });
+                    } catch (e) {
+                      formattedPST = run.created_at;
+                    }
+                  }
                   return (
                     <tr key={run.run_id || idx} className="hover:bg-slate-900/60 transition-colors">
                       <td className="py-3 px-3">
                         <div className="flex flex-col">
                           <span className="font-bold text-blue-400">{run.run_id}</span>
-                          <span className="text-[10px] text-slate-400">{createdDate}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">{formattedPST}</span>
                         </div>
                       </td>
                       <td className="py-3 px-3 text-slate-300">
