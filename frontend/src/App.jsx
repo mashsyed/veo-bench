@@ -17,7 +17,7 @@ import {
   evaluateQuality 
 } from './services/api';
 
-const DEFAULT_RUBRIC = `Role: You are an expert AI Media QA Evaluator for Expedia Group MarTech.
+const DEFAULT_RUBRIC = `Role: You are an expert AI Media QA Evaluator for Enterprise MarTech.
 Evaluate the generated video against the starting image and prompt using the following 8 Core Evaluation Dimensions (Graded 1 to 5 Stars).
 For EVERY single metric below, you MUST provide an explicit 1-2 sentence evaluation rationale explaining your score:
 

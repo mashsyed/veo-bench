@@ -31,7 +31,7 @@ export default function SidebarNav({ activeTab, setActiveTab }) {
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-bold text-slate-100 font-mono tracking-tight">VeoBench v1.0</span>
-            <span className="text-xs text-slate-400 font-mono">Expedia MarTech Platform</span>
+            <span className="text-xs text-slate-400 font-mono">MarTech Platform</span>
           </div>
         </div>
 
